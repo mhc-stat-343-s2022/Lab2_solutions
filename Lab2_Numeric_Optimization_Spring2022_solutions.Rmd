@@ -1,0 +1,295 @@
+---
+title: "Lab 2: Numeric optimization (Solutions)"
+subtitle: "STAT 343: Mathematical Statistics"
+output:
+  pdf_document:
+    keep_tex: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(ggplot2)
+```
+
+## Problem set up
+
+A recent study of 2700 children randomly selected from all parts of England found that 540 of them were deficient in vitamin D.  Let's use these data to estimate the proportion of children in England who are deficient in vitamin D.
+
+Let $X$ = the count of children in our sample who are deficient in vitamin D.
+
+We could use the model
+
+$X \sim \text{Binomial}(2700, p)$
+
+## Reminder of previous results
+
+We have previously seen the following results for this model, which you will use below:
+
+The likelihood function is
+
+$L(p | x) = {n \choose x} p^x (1 - p)^{n - x}$
+
+The log-likelihood function is
+
+$\ell(p | x) = \log \left\{{n \choose x} \right\} + x \log(p) + (n - x) \log(1 - p)$
+
+The derivative of the log-likelihood with respect to $p$ is
+
+$\frac{d}{dp} \ell(p | x) = \frac{x}{p} + (n - x) \frac{1}{1 - p}(-1)$
+
+Setting this equal to 0 and solving for p, we obtain a critical point of
+
+$\hat{p} = \frac{x}{n}$
+
+The second derivative of the log-likelihood is
+
+$\frac{d^2}{dp^2} \ell(p | x) = \frac{-x}{p^2} + \frac{x - n}{(1 - p)^2}$
+
+Since both $p^2$ and $(1 - p)^2$ are positive, and both $-x$ and $x - n$ are negative (or if one is 0 then the other is negative), the second derivative of the log-likelihood is negative.  Thus, the critical point found above is the maximum likelihood estimate.
+
+## A plot of the log-likelihood and maximum likelihood estimate
+
+The plot below displays the log-likelihood function, with a vertical line at the maximum likelihood estimate of $540/2700 = 0.2$.
+
+```{r}
+loglikelihood <- function(p) {
+  result <- vector("numeric", length(p))
+  for(i in seq_along(p)) {
+    result[i] <- dbinom(540, size = 2700, prob = p[i], log = TRUE)
+  }
+  
+  return(result)
+}
+
+## Define function for first derivative
+ddp <- function(p, x, n){
+  x/p-(n-x)/(1-p)
+}
+
+## Define function for second derivative
+d2dp <- function(p, x, n){
+  -x/p^2+(x-n)/(1-p)^2
+}
+
+P2 <- function(p, p_center){
+  dldp <- ddp(p=p_center, x=540, n=2700)
+  d2ldp2 <- d2dp(p=p_center, x=540, n=2700)
+  loglikelihood(p_center) + dldp*(p-p_center)+0.5*d2ldp2*(p-p_center)^2
+}
+
+ggplot(data = data.frame(p = c(0, 1)), mapping = aes(x = p)) +
+  stat_function(fun = loglikelihood, n = 1001) +
+  geom_vline(xintercept = 0.2) +
+  ylim(c(-10000, 0)) +
+  theme_bw()
+```
+
+## Estimating p by numeric optimization
+
+Let's see how we could use numeric optimization to estimate $p$.  Since we know the maximum likelihood estimate is 0.2, we will know the method is working if our estimates converge to 0.2.
+
+#### Display initial guess
+
+In order to show the method at work, let's start with an initial guess of p = 0.9 (ordinarily, you'd want your initial guess to be as good as possible - but in this case, the parameter estimates converge too quickly for this to be an interesting example if we start much closer to 0.2).
+
+Add a vertical line to the plot below at the initial guess of p = 0.9.  Use your favorite color for the line.
+
+```{r}
+loglikelihood <- function(p) {
+  result <- vector("numeric", length(p))
+  for(i in seq_along(p)) {
+    result[i] <- dbinom(540, size = 2700, prob = p[i], log = TRUE)
+  }
+  
+  return(result)
+}
+ggplot(data = data.frame(p = c(0, 1)), mapping = aes(x = p)) +
+  stat_function(fun = loglikelihood, n = 1001) +
+  geom_vline(xintercept = 0.2) +
+  ## add vertical line
+  geom_vline(xintercept = 0.9, color="purple") +
+  ylim(c(-10000, 0)) +
+  theme_bw()
+```
+
+#### Update guess (first update)
+
+Calculate the first and second derivatives of the log-likelihood function evaluated at the initial guess, and use those values to obtain an updated parameter estimate.
+
+```{r}
+## Set initial value
+p0 <- 0.9 
+
+## Calculate update: p1
+p1 <- p0-ddp(p=p0, x=540, n=2700)/d2dp(p=p0, x=540, n=2700)
+p1
+```
+
+Add a vertical line to the plot below at your updated parameter estimate.
+
+```{r}
+ggplot(data = data.frame(p = c(0, 1)), mapping = aes(x = p)) +
+  stat_function(fun = loglikelihood, n = 1001) +
+  stat_function(fun = P2,
+                args = list(p_center = p1),
+                color="purple") + 
+  geom_vline(xintercept = 0.2) +
+  ## add vertical line
+  geom_vline(xintercept = p1, color="purple") +
+  ylim(c(-10000, 0)) +
+  theme_bw()
+```
+
+
+#### Update guess (second update)
+
+Calculate the first and second derivatives of the log-likelihood function at the updated parameter estimate, and use those values to obtain a new updated parameter estimate.
+
+```{r}
+## Calculate update: p2
+p2 <- p1-ddp(p=p1, x=540, n=2700)/d2dp(p=p1, x=540, n=2700)
+p2
+```
+
+Add a vertical line to the plot below at your updated parameter estimate.
+
+```{r}
+ggplot(data = data.frame(p = c(0, 1)), mapping = aes(x = p)) +
+  stat_function(fun = loglikelihood, n = 1001) +
+  stat_function(fun = P2,
+                args = list(p_center = p2),
+                color="purple") + 
+  geom_vline(xintercept = 0.2) +
+  ## add vertical line
+  geom_vline(xintercept = p2, color="purple") +
+  ylim(c(-10000, 0)) +
+  theme_bw()
+```
+
+
+#### Update guess (third update)
+
+Calculate the first and second derivatives of the log-likelihood function at the updated parameter estimate, and use those values to obtain a new updated parameter estimate.
+
+```{r}
+## Calculate update: p3
+p3 <- p2-ddp(p=p2, x=540, n=2700)/d2dp(p=p2, x=540, n=2700)
+p3
+```
+
+Add a vertical line to the plot below at your updated parameter estimate.
+
+```{r}
+ggplot(data = data.frame(p = c(0, 1)), mapping = aes(x = p)) +
+  stat_function(fun = loglikelihood, n = 1001) +
+  stat_function(fun = P2,
+                args = list(p_center = p3),
+                color="purple") + 
+  geom_vline(xintercept = 0.2) +
+  ## add vertical line
+  geom_vline(xintercept = p3, color="purple") +
+  ylim(c(-10000, 0)) +
+  theme_bw()
+```
+
+
+#### Update guess (fourth update)
+
+Calculate the first and second derivatives of the log-likelihood function at the updated parameter estimate, and use those values to obtain a new updated parameter estimate.
+
+```{r}
+## Calculate update: p4
+p4 <- p3-ddp(p=p3, x=540, n=2700)/d2dp(p=p3, x=540, n=2700)
+p4
+```
+
+Add a vertical line to the plot below at your updated parameter estimate.
+
+```{r}
+ggplot(data = data.frame(p = c(0, 1)), mapping = aes(x = p)) +
+  stat_function(fun = loglikelihood, n = 1001) +
+  stat_function(fun = P2,
+                args = list(p_center = p4),
+                color="purple") + 
+  geom_vline(xintercept = 0.2) +
+  ## add vertical line
+  geom_vline(xintercept = p4, color="purple") +
+  ylim(c(-10000, 0)) +
+  theme_bw()
+```
+
+
+#### Update guess (fifth update)
+
+Calculate the first and second derivatives of the log-likelihood function at the updated parameter estimate, and use those values to obtain a new updated parameter estimate.
+
+```{r}
+## Calculate update: p5
+p5 <- p4-ddp(p=p4, x=540, n=2700)/d2dp(p=p4, x=540, n=2700)
+p5
+```
+
+Add a vertical line to the plot below at your updated parameter estimate.
+
+```{r}
+ggplot(data = data.frame(p = c(0, 1)), mapping = aes(x = p)) +
+  stat_function(fun = loglikelihood, n = 1001) +
+  stat_function(fun = P2,
+                args = list(p_center = p5),
+                color="purple") + 
+  geom_vline(xintercept = 0.2) +
+  ## add vertical line
+  geom_vline(xintercept = p5, color="purple") +
+  ylim(c(-10000, 0)) +
+  theme_bw()
+```
+
+
+#### Update guess (sixth update)
+
+Calculate the first and second derivatives of the log-likelihood function at the updated parameter estimate, and use those values to obtain a new updated parameter estimate.
+
+```{r}
+p6 <- p5-ddp(p=p5, x=540, n=2700)/d2dp(p=p5, x=540, n=2700)
+p6
+```
+
+Add a vertical line to the plot below at your updated parameter estimate.
+
+```{r}
+ggplot(data = data.frame(p = c(0, 1)), mapping = aes(x = p)) +
+  stat_function(fun = loglikelihood, n = 1001) +
+  stat_function(fun = P2,
+                args = list(p_center = p6),
+                color="purple") + 
+  geom_vline(xintercept = 0.2) +
+  ## add vertical line
+  geom_vline(xintercept = p6, color="purple") +
+  ylim(c(-10000, 0)) +
+  theme_bw()
+```
+
+#### Optional, if time
+
+The updates above were obtained by maximizing second-order Taylor series approximations to the log-likelihood.  Go back and add a new layer to each of those plots showing the Taylor series approximation at the current estimate that will be used to obtain the next estimate.
+
+
+#### Optional, if even more time
+
+Write a while loop implementing the Newton-Raphson optimization algorithm for this example.  Use a tolerance of 1e-8 and set the maximum number of iterations to 100.
+
+```{r}
+p <- 0.9
+eps <- 0.9
+i <- 0
+
+while(eps > 1e-8 & i < 100){
+  i <- i+1
+  p_new <- p-ddp(p=p, x=540, n=2700)/d2dp(p=p, x=540, n=2700)
+  eps <- abs(p_new-p)
+  print(paste0("Itr: ", i, "; p: ", p_new))
+  # print(paste0("Itr: ", i, "; p: ", p_new, "; eps: ", eps))
+  p <- p_new
+}
+```
